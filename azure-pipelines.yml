@@ -1,44 +1,48 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
-- main
+  branches:
+    include:
+      - main
 
 pool:
   vmImage: ubuntu-latest
 
 variables:
-  appName: 'myassist558798'
-  acrName: 'acrfiaprm558798'
-  acrServer: 'acrfiaprm558798.azurecr.io'
-  resourceGroup: 'RG-FIAP'
+  appName: myassist558798
+  acrName: acrfiaprm558798
+  acrLoginServer: acrfiaprm558798.azurecr.io
+  imageRepository: fiap/myassist558798
+  dockerRegistryServiceConnection: Docker-Connection
+  resourceGroup: RG-FIAP
 
-steps:
-- task: replacetokens@5
-  displayName: 'Replace tokens in **/*.properties'
-  inputs:
-    rootDirectory: 'src'
-    targetFiles: '**/*.properties'
-    encoding: 'auto'
-    tokenPattern: 'custom'
-    tokenPrefix: '#{'
-    tokenSuffix: '}#'
+stages:
+- stage: ReplaceTokens
+  displayName: Replace Tokens in Properties
+  jobs:
+    - job: ReplaceTokens
+      displayName: Replace application properties tokens
+      steps:
+        - task: replacetokens@5
+          displayName: Replace tokens in properties files
+          inputs:
+            rootDirectory: src
+            targetFiles: '**/*.properties'
+            encoding: auto
+            tokenPattern: custom
+            tokenPrefix: '#{'
+            tokenSuffix: '}#'
 
-- task: Docker@2
-  displayName: 'Build Docker image'
-  inputs:
-    containerRegistry: 'Docker-Connection'
-    repository: 'fiap/$(appName)'
-    command: 'build'
-    Dockerfile: '**/Dockerfile'
-    tags: '$(Build.BuildNumber)'
-
-- task: Docker@2
-  displayName: 'Push Docker image'
-  inputs:
-    containerRegistry: 'Docker-Connection'
-    repository: 'fiap/$(appName)'
-    command: 'push'
-    tags: '$(Build.BuildNumber)'
+- stage: Build
+  displayName: Build and Push to ACR
+  dependsOn: ReplaceTokens
+  jobs:
+    - job: Build
+      displayName: Docker Build and Push
+      steps:
+        - task: Docker@2
+          displayName: Build and Push image to ACR
+          inputs:
+            containerRegistry: $(dockerRegistryServiceConnection)
+            repository: $(imageRepository)
+            command: buildAndPush
+            Dockerfile: '**/Dockerfile'
+            tags: $(Build.BuildId)
